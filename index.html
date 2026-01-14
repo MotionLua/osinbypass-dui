@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Bypass DUI Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: transparent;
+            overflow: hidden;
+            color: #ffffff;
+        }
+
+        /* Main UI Container */
+        #mainUI {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            background: rgba(20, 20, 20, 0.95);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            min-width: 600px;
+            max-width: 800px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        #mainUI.visible {
+            display: block;
+        }
+
+        /* Menu Path */
+        .menu-path {
+            color: #00ff00;
+            font-size: 12px;
+            margin-bottom: 10px;
+            opacity: 0.7;
+        }
+
+        /* Menu Elements */
+        .menu-elements {
+            list-style: none;
+        }
+
+        .menu-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(40, 40, 40, 0.8);
+            border-left: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .menu-item:hover {
+            background: rgba(60, 60, 60, 0.9);
+        }
+
+        .menu-item.active {
+            border-left-color: #00ff00;
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        /* Keyboard Input */
+        #keyboardInput {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            background: rgba(20, 20, 20, 0.98);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 30px;
+            min-width: 400px;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+        }
+
+        #keyboardInput.visible {
+            display: block;
+        }
+
+        #keyboardTitle {
+            color: #00ff00;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        #keyboardValue {
+            width: 100%;
+            padding: 10px;
+            background: rgba(40, 40, 40, 0.9);
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            color: #ffffff;
+            font-size: 16px;
+            outline: none;
+        }
+
+        /* Freecam Display */
+        #freecamDisplay {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: none;
+            background: rgba(20, 20, 20, 0.9);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 250px;
+        }
+
+        #freecamDisplay.visible {
+            display: block;
+        }
+
+        .freecam-info {
+            margin: 5px 0;
+            color: #00ff00;
+            font-size: 14px;
+        }
+
+        /* Notifications */
+        #notifications {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+        }
+
+        .notification {
+            background: rgba(20, 20, 20, 0.95);
+            border: 2px solid;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin: 10px 0;
+            min-width: 300px;
+            max-width: 500px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .notification.success {
+            border-color: #00ff00;
+        }
+
+        .notification.error {
+            border-color: #ff0000;
+        }
+
+        .notification.info {
+            border-color: #00aaff;
+        }
+
+        .notification-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .notification-desc {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main UI -->
+    <div id="mainUI">
+        <div class="menu-path" id="menuPath"></div>
+        <ul class="menu-elements" id="menuElements"></ul>
+    </div>
+
+    <!-- Keyboard Input -->
+    <div id="keyboardInput">
+        <div id="keyboardTitle"></div>
+        <input type="text" id="keyboardValue" readonly>
+    </div>
+
+    <!-- Freecam Display -->
+    <div id="freecamDisplay">
+        <div class="freecam-info">Freecam Active</div>
+        <div class="freecam-info" id="freecamWeapon">Weapon: -</div>
+        <div class="freecam-info" id="freecamVehicle">Vehicle: -</div>
+    </div>
+
+    <!-- Notifications Container -->
+    <div id="notifications"></div>
+
+    <script>
+        // Listen for messages from MachoSendDuiMessage
+        window.addEventListener('message', function(event) {
+            try {
+                const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                handleMessage(data);
+            } catch (e) {
+                console.error('Error parsing message:', e);
+            }
+        });
+
+        function handleMessage(data) {
+            if (!data || !data.action) return;
+
+            switch (data.action) {
+                case 'showUI':
+                    handleShowUI(data);
+                    break;
+                case 'updateElements':
+                    handleUpdateElements(data);
+                    break;
+                case 'updateKeyboard':
+                    handleUpdateKeyboard(data);
+                    break;
+                case 'displayFreecam':
+                    handleDisplayFreecam(data);
+                    break;
+                case 'scroll':
+                    handleScroll(data);
+                    break;
+                case 'updateWeapon':
+                    handleUpdateWeapon(data);
+                    break;
+                case 'updateVehicle':
+                    handleUpdateVehicle(data);
+                    break;
+                case 'showNotification':
+                    handleShowNotification(data);
+                    break;
+                case 'keydown':
+                    handleKeydown(data);
+                    break;
+            }
+        }
+
+        function handleShowUI(data) {
+            const mainUI = document.getElementById('mainUI');
+            if (data.visible) {
+                mainUI.classList.add('visible');
+                if (data.elements) {
+                    renderMenu(data.elements, data.index || 0);
+                }
+                if (data.path) {
+                    document.getElementById('menuPath').textContent = data.path.join(' > ');
+                }
+            } else {
+                mainUI.classList.remove('visible');
+            }
+        }
+
+        function handleUpdateElements(data) {
+            if (data.elements) {
+                renderMenu(data.elements, data.index || 0);
+            }
+            if (data.path) {
+                document.getElementById('menuPath').textContent = data.path.join(' > ');
+            }
+        }
+
+        function renderMenu(elements, activeIndex) {
+            const menuContainer = document.getElementById('menuElements');
+            menuContainer.innerHTML = '';
+
+            elements.forEach((element, index) => {
+                const li = document.createElement('li');
+                li.className = 'menu-item';
+                if (index === activeIndex) {
+                    li.classList.add('active');
+                }
+                li.textContent = element.label || element.name || `Item ${index + 1}`;
+                menuContainer.appendChild(li);
+            });
+        }
+
+        function handleUpdateKeyboard(data) {
+            const keyboardInput = document.getElementById('keyboardInput');
+            const keyboardTitle = document.getElementById('keyboardTitle');
+            const keyboardValue = document.getElementById('keyboardValue');
+
+            if (data.visible) {
+                keyboardInput.classList.add('visible');
+                keyboardTitle.textContent = data.title || 'Input';
+                keyboardValue.value = data.value || '';
+            } else {
+                keyboardInput.classList.remove('visible');
+            }
+        }
+
+        function handleDisplayFreecam(data) {
+            const freecamDisplay = document.getElementById('freecamDisplay');
+            if (data.visible) {
+                freecamDisplay.classList.add('visible');
+                if (data.weaponIndex !== undefined) {
+                    document.getElementById('freecamWeapon').textContent = `Weapon Index: ${data.weaponIndex}`;
+                }
+                if (data.vehicleIndex !== undefined) {
+                    document.getElementById('freecamVehicle').textContent = `Vehicle Index: ${data.vehicleIndex}`;
+                }
+            } else {
+                freecamDisplay.classList.remove('visible');
+            }
+        }
+
+        function handleScroll(data) {
+            // Handle scroll direction if needed
+            console.log('Scroll:', data.direction);
+        }
+
+        function handleUpdateWeapon(data) {
+            document.getElementById('freecamWeapon').textContent = `Weapon Index: ${data.index}`;
+        }
+
+        function handleUpdateVehicle(data) {
+            document.getElementById('freecamVehicle').textContent = `Vehicle Index: ${data.index}`;
+        }
+
+        function handleShowNotification(data) {
+            const notifications = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification ${data.type || 'info'}`;
+            
+            const title = document.createElement('div');
+            title.className = 'notification-title';
+            title.textContent = data.title || 'Notification';
+            
+            const desc = document.createElement('div');
+            desc.className = 'notification-desc';
+            desc.textContent = data.desc || data.message || '';
+            
+            notification.appendChild(title);
+            notification.appendChild(desc);
+            notifications.appendChild(notification);
+
+            const duration = data.duration || 3000;
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, duration);
+        }
+
+        function handleKeydown(data) {
+            // Handle keydown events if needed
+            console.log('Keydown:', data.index);
+        }
+
+        // Initialize
+        console.log('OSINT Bypass DUI Interface Loaded');
+    </script>
+</body>
+</html>
+
